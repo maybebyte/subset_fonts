@@ -189,26 +189,17 @@ def save_font_file(font_data: bytes, output_path: Path) -> None:
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # pylint: disable-next=consider-using-with
-    temp_file = tempfile.NamedTemporaryFile(
-        suffix=output_path.suffix, dir=output_path.parent, delete=False
-    )
+    temp_path = ""
 
-    try:
+    with tempfile.NamedTemporaryFile(
+        suffix=output_path.suffix, dir=output_path.parent, delete=False
+    ) as temp_file:
         temp_file.write(font_data)
         temp_file.flush()
         os.fsync(temp_file.fileno())
-        temp_file.close()
+        temp_path = temp_file.name
 
-        os.replace(temp_file.name, output_path)
-
-    except Exception:
-        temp_file.close()
-        try:
-            os.unlink(temp_file.name)
-        except OSError:
-            pass
-        raise
+    os.replace(temp_path, output_path)
 
 
 def load_font(font_path: Path) -> TTFont:
