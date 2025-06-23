@@ -387,11 +387,9 @@ def process_font_for_charset(
         return None
 
 
-def process_single_font(font_path: Path, output_dir: Path) -> list[Path]:
-    """Process one font file through all available character sets."""
-    font = load_font(font_path)
+def process_single_font(font: TTFont, output_dir: Path) -> list[Path]:
+    """Process one loaded font through all available character sets."""
     charsets = get_all_charsets()
-
     successful_outputs = []
 
     for charset_name, unicode_ranges in charsets.items():
@@ -430,18 +428,28 @@ def validate_font_paths(font_paths: list[Path]) -> None:
             raise ValueError(f"Path is not a file: {font_path}")
 
 
-def check_family_conflicts(font_paths: list[Path]) -> dict[str, Path]:
-    """Pre-check for font family name conflicts."""
+def load_fonts_and_check_conflicts(
+    font_paths: list[Path],
+) -> dict[Path, TTFont]:
+    """Load all fonts and check for family name conflicts."""
+    loaded_fonts = {}
     processed_families = {}
+
     for font_path in font_paths:
         font = load_font(font_path)
         family_dir_name = normalize_string(get_font_family(font))
 
         if family_dir_name in processed_families:
-            raise ValueError(f"Font family name conflict: {family_dir_name}")
-        processed_families[family_dir_name] = font_path
+            existing_path = processed_families[family_dir_name]
+            raise ValueError(
+                f"Font family '{family_dir_name}' conflicts: "
+                f"{font_path} vs {existing_path}"
+            )
 
-    return processed_families
+        processed_families[family_dir_name] = font_path
+        loaded_fonts[font_path] = font
+
+    return loaded_fonts
 
 
 def main():
@@ -452,17 +460,17 @@ def main():
     font_paths = [Path(font) for font in args.fonts]
 
     validate_font_paths(font_paths)
-    check_family_conflicts(font_paths)
+
+    loaded_fonts = load_fonts_and_check_conflicts(font_paths)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    for font_path in font_paths:
+    for font_path, font in loaded_fonts.items():
         print(f"Processing {font_path}...")
 
-        font = load_font(font_path)
         family_dir_name = normalize_string(get_font_family(font))
         family_output_dir = output_dir / family_dir_name
 
-        process_single_font(font_path, family_output_dir)
+        process_single_font(font, family_output_dir)
 
     print(f"\nFont optimization complete! Output saved to: {output_dir}")
 
