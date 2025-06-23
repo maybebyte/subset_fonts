@@ -15,7 +15,9 @@
 
 import argparse
 import hashlib
+import os
 import re
+import tempfile
 import warnings
 from io import BytesIO
 from pathlib import Path
@@ -76,9 +78,7 @@ CRITICAL_FOFT = parse_unicode_ranges(
     "U+21,U+22,U+27-29,U+2C-3B,U+3F,U+41-5A,U+61-7A,U+2013,U+2014,U+2018,U+2019,U+201C,U+201D,U+2022,U+2026"
 )
 
-CRITICAL_FOFT_CODE = parse_unicode_ranges(
-    "U+21-7E"
-)
+CRITICAL_FOFT_CODE = parse_unicode_ranges("U+21-7E")
 
 DEFAULT_MAX_FONT_SIZE = 20 * 1024 * 1024  # 20MB
 
@@ -183,13 +183,32 @@ def create_filename(
 
 
 def save_font_file(font_data: bytes, output_path: Path) -> None:
-    """Save font data to file, creating parent directories if needed."""
+    """Save font data to file atomically using write-and-rename pattern."""
     if not font_data:
         raise ValueError("Font data cannot be empty")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_path, "wb") as f:
-        f.write(font_data)
+
+    # pylint: disable-next=consider-using-with
+    temp_file = tempfile.NamedTemporaryFile(
+        suffix=output_path.suffix, dir=output_path.parent, delete=False
+    )
+
+    try:
+        temp_file.write(font_data)
+        temp_file.flush()
+        os.fsync(temp_file.fileno())
+        temp_file.close()
+
+        os.replace(temp_file.name, output_path)
+
+    except Exception:
+        temp_file.close()
+        try:
+            os.unlink(temp_file.name)
+        except OSError:
+            pass
+        raise
 
 
 def load_font(font_path: Path) -> TTFont:
