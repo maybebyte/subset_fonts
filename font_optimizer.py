@@ -431,22 +431,25 @@ def validate_font_paths(font_paths: list[Path]) -> None:
 def load_fonts_and_check_conflicts(
     font_paths: list[Path],
 ) -> dict[Path, TTFont]:
-    """Load all fonts and check for family name conflicts."""
+    """Load all fonts and check for family + variant conflicts."""
     loaded_fonts = {}
-    processed_families = {}
+    processed_combinations = {}
 
     for font_path in font_paths:
         font = load_font(font_path)
-        family_dir_name = normalize_string(get_font_family(font))
+        family_name = normalize_string(get_font_family(font))
+        variant_name = normalize_string(get_font_variant(font))
 
-        if family_dir_name in processed_families:
-            existing_path = processed_families[family_dir_name]
+        combination_key = (family_name, variant_name)
+
+        if combination_key in processed_combinations:
+            existing_path = processed_combinations[combination_key]
             raise ValueError(
-                f"Font family '{family_dir_name}' conflicts: "
-                f"{font_path} vs {existing_path}"
+                f"Duplicate font variant: {family_name} {variant_name} "
+                f"found in {font_path} and {existing_path}"
             )
 
-        processed_families[family_dir_name] = font_path
+        processed_combinations[combination_key] = font_path
         loaded_fonts[font_path] = font
 
     return loaded_fonts
