@@ -153,7 +153,7 @@ def normalize_string(text: str) -> str:
         raise ValueError("Input text cannot be empty")
 
     transformed_text = text.strip().lower()
-    transformed_text.replace(" ", "-")
+    transformed_text = transformed_text.replace(" ", "-")
     transformed_text = re.sub(r"[^a-z0-9\-]", "", transformed_text)
 
     return transformed_text
