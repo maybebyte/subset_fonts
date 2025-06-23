@@ -364,7 +364,7 @@ def process_font_for_charset(
     font_variant = get_font_variant(font)
 
     try:
-        if charset_name == "critical-text" or charset_name == "critical-code":
+        if charset_name in ("critical-text", "critical-code"):
             subset_font_obj = create_critical_foft(font, unicode_ranges)
         else:
             subset_font_obj = subset_font(font, unicode_ranges)
