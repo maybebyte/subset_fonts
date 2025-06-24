@@ -75,7 +75,7 @@ VIETNAMESE = parse_unicode_ranges(
 )
 
 CRITICAL_FOFT = parse_unicode_ranges(
-    "U+20-22,U+27-29,U+2C-3B,U+3F,U+41-5A,U+61-7A,U+2013,U+2014,U+2018,U+2019,U+201C,U+201D,U+2022,U+2026"
+    "U+20-23,U+25-29,U+2C-3B,U+3F-5A,U+61-7A,U+2013,U+2014,U+2018,U+2019,U+201C,U+201D,U+2022,U+2026"
 )
 
 CRITICAL_FOFT_CODE = parse_unicode_ranges("U+20-7E")
