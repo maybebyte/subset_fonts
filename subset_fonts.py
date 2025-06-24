@@ -310,7 +310,7 @@ def create_critical_foft(font: TTFont, unicode_ranges: set[int]) -> TTFont:
 
     if "fvar" in font_copy:
         instancer.instantiateVariableFont(
-            font_copy, {"wght": None}, inplace=True
+            font_copy, {"wght": 400}, inplace=True
         )
 
     subsetter = Subsetter()
