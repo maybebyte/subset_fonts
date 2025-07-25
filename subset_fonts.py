@@ -113,6 +113,21 @@ def validate_unicode_ranges(unicode_ranges: set[int]) -> set[int]:
     return valid_codepoints
 
 
+def get_font_codepoints(font: TTFont) -> set[int]:
+    """Extract all available Unicode codepoints from font's character map."""
+    if not font:
+        raise ValueError("Font cannot be empty")
+
+    if "cmap" not in font:
+        raise ValueError("Font missing character mapping table")
+
+    cmap = font.getBestCmap()
+    if not cmap:
+        raise ValueError("Font has no Unicode character mapping")
+
+    return validate_unicode_ranges(cmap.keys())
+
+
 def create_safe_output_path(output_dir: Path, filename: str) -> Path:
     """Create and validate output path within safe directory."""
     if not filename:
@@ -287,7 +302,20 @@ def subset_font(font: TTFont, unicode_ranges: set[int]) -> TTFont:
     subsetter = Subsetter()
     subsetter.options.harfbuzz_repacker = True
     subsetter.options.layout_features = ["*"]
-    subsetter.options.notdef_outline = True
+
+    # Keep these name IDs to give proper attribution/credit where
+    # it's due.
+    #
+    # 7: Trademark string.
+    # 8: Manufacturer name.
+    # 9: Designer name.
+    # 11: URL of vendor.
+    # 12: URL of designer.
+    # 13: License description.
+    # 14: License URL.
+    #
+    # https://learn.microsoft.com/en-us/typography/opentype/spec/name
+    subsetter.options.name_IDs += [7, 8, 9, 11, 12, 13, 14]
 
     characters = "".join(chr(cp) for cp in valid_codepoints)
     subsetter.populate(text=characters)
@@ -316,9 +344,7 @@ def create_critical_foft(font: TTFont, unicode_ranges: set[int]) -> TTFont:
     subsetter = Subsetter()
     subsetter.options.harfbuzz_repacker = True
     subsetter.options.ignore_missing_unicodes = False
-    subsetter.options.notdef_outline = True
-    subsetter.options.glyph_names = False
-    subsetter.options.legacy_kern = False
+    subsetter.options.name_IDs += [7, 8, 9, 11, 12, 13, 14]
 
     characters = "".join(chr(cp) for cp in valid_codepoints)
     subsetter.populate(text=characters)
@@ -379,8 +405,11 @@ def process_font_for_charset(
 
 
 def process_single_font(font: TTFont, output_dir: Path) -> list[Path]:
-    """Process one loaded font through all available character sets."""
-    charsets = get_all_charsets()
+    """
+    Process one loaded font through all available character sets including
+    dynamic 'other'.
+    """
+    charsets = get_charsets_for_font(font, min_other_glyphs=1)
     successful_outputs = []
 
     for charset_name, unicode_ranges in charsets.items():
@@ -424,7 +453,7 @@ def load_fonts_and_check_conflicts(
 ) -> dict[Path, TTFont]:
     """Load all fonts and check for family + variant conflicts."""
     loaded_fonts = {}
-    processed_combinations = {}
+    processed_combinations: dict[tuple[str, str], Path] = {}
 
     for font_path in font_paths:
         font = load_font(font_path)
@@ -444,6 +473,52 @@ def load_fonts_and_check_conflicts(
         loaded_fonts[font_path] = font
 
     return loaded_fonts
+
+
+def get_charsets_for_font(
+    font: TTFont, min_other_glyphs: int = 1
+) -> dict[str, set[int]]:
+    """
+    Get all character sets including font-specific 'other' charset for
+    uncovered glyphs.
+    """
+    if not font:
+        raise ValueError("Font cannot be empty")
+
+    if min_other_glyphs < 1:
+        raise ValueError("Minimum other glyphs must be positive")
+
+    base_charsets = get_all_charsets()
+
+    try:
+        font_codepoints = get_font_codepoints(font)
+
+        if not font_codepoints:
+            warnings.warn("Font contains no valid Unicode codepoints")
+            return base_charsets
+
+        covered_codepoints = set()
+        for charset_codepoints in base_charsets.values():
+            covered_codepoints.update(charset_codepoints)
+
+        other_codepoints = font_codepoints - covered_codepoints
+
+        if len(other_codepoints) >= min_other_glyphs:
+            base_charsets["other"] = other_codepoints
+        elif other_codepoints:
+            font_family = get_font_family(font)
+            warnings.warn(
+                f"Font {font_family} has {len(other_codepoints)} uncovered glyphs "
+                f"(below threshold of {min_other_glyphs}), skipping 'other' subset"
+            )
+
+    except ValueError as e:
+        font_family = get_font_family(font) if font else "unknown"
+        warnings.warn(
+            f"Could not calculate 'other' charset for {font_family}: {e}"
+        )
+
+    return base_charsets
 
 
 def main():
